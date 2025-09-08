@@ -1,0 +1,371 @@
+{
+  "name": "My workflow 4",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "user-subscribe",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -320,
+        160
+      ],
+      "id": "c395a42b-ba5b-4b34-a4be-e1d44d4f2023",
+      "name": "Webhook",
+      "webhookId": "610c5c16-2148-478f-b6b9-7a8bd35be1e4",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "https://www.thehindu.com/news/national/feeder/default.rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -48,
+        208
+      ],
+      "id": "de873833-31b8-42f9-bc5e-535a85ef1730",
+      "name": "RSS Read1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over all incoming items\nreturn $input.all().map(item => {\n  const text = (item.json.title || \"\") + \" \" + (item.json.content || \"\");\n\n  // Default values\n  let crime_type = \"Unknown\";\n  let severity = \"Low\";\n\n  // Simple keyword detection\n  if (text.toLowerCase().includes(\"murder\")) {\n    crime_type = \"Murder\";\n    severity = \"High\";\n  } else if (text.toLowerCase().includes(\"robbery\")) {\n    crime_type = \"Robbery\";\n    severity = \"Medium\";\n  } else if (text.toLowerCase().includes(\"vandalism\")) {\n    crime_type = \"Vandalism\";\n    severity = \"Low\";\n  }\n\n  // Return enriched data\n  return {\n    json: {\n      ...item.json,\n      crime_type,\n      severity\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        240
+      ],
+      "id": "b0dad4b8-8ec9-4392-b303-ced9efeb8fcc",
+      "name": "Code2",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Define related keywords for crime types\nconst crimeKeywords = {\n  theft: [\"theft\", \"robbery\", \"burglary\", \"stealing\", \"snatching\"],\n  murder: [\"murder\", \"homicide\", \"killing\"],\n  assault: [\"assault\", \"attack\", \"violence\", \"beating\"],\n  fraud: [\"fraud\", \"scam\", \"cheating\", \"forgery\"],\n  // add more crime types & synonyms as needed\n};\n\n// Loop over all merged items\nreturn $input.all().map(item => {\n  const userLocation = (item.json.location || \"\").toLowerCase();\n  const userCrimeType = (item.json.crime_type || \"\").toLowerCase(); // user-selected crime type\n\n  const newsTitle = (item.json.title || \"\").toLowerCase();\n  const newsContent = (item.json.content || \"\").toLowerCase();\n\n  let match = false;\n\n  if (userLocation && userCrimeType) {\n    // Gather possible crime keywords (user input + related ones)\n    const relatedKeywords = crimeKeywords[userCrimeType] || [userCrimeType];\n\n    // Check if location matches\n    const locationMatch =\n      newsTitle.includes(userLocation) || newsContent.includes(userLocation);\n\n    // Check if any related crime keyword matches\n    const crimeMatch = relatedKeywords.some(keyword =>\n      newsTitle.includes(keyword) || newsContent.includes(keyword)\n    );\n\n    if (locationMatch && crimeMatch) {\n      match = true;\n    }\n  }\n\n  return {\n    json: {\n      ...item.json,     // keep everything (title, content, user info, etc.)\n      email: item.json.email || \"\",\n      name: item.json.name || \"\",\n      match\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        272
+      ],
+      "id": "35fbaf4c-5331-430b-8aa2-bb8ed2bd3508",
+      "name": "Code3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "145769a2-f763-484a-970b-59bc929ffe7e",
+              "leftValue": "={{ $json[\"severity\"]}}",
+              "rightValue": "High",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1344,
+        272
+      ],
+      "id": "0b383ffc-ca74-4993-baee-3a20d008dcff",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "fromEmail": "hasitha6015@gmail.com",
+        "toEmail": "={{$json[\"email\"]}}\n\n",
+        "subject": "=🚨 Crime Alert: {{$json[\"crime_type\"]}} in {{$json[\"location\"] || \"Unknown\"}}",
+        "html": "=<h2>Hello {{$json[\"name\"]}},</h2>\n<p>Here are the latest news alerts for your location:</p>\n<ul>\n{{ $json[\"news\"].map(n => `\n  <li>\n    <a href=\"${n.link}\" target=\"_blank\">${n.title}</a><br/>\n    <strong>Severity:</strong> ${n.severity} | <strong>Crime Type:</strong> ${n.crime_type}<br/>\n    <em>${n.content}</em><br/>\n    <small>Published on: ${n.pubDate}</small>\n  </li>\n`).join('') }}\n</ul>\n<p>Stay safe and informed!</p>\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1680,
+        176
+      ],
+      "id": "75a28155-9a2e-4fc7-afd2-3b7a1f54fa8b",
+      "name": "Send email1",
+      "webhookId": "ef8044a7-314a-4889-a5ef-71149ec24cd0",
+      "credentials": {
+        "smtp": {
+          "id": "w6vPvy1a4T1sUGB1",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "users",
+          "mode": "name"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "name",
+              "value": "={{$json[\"body\"][\"name\"]}}"
+            },
+            {
+              "column": "email",
+              "value": "={{$json[\"body\"][\"email\"]}}"
+            },
+            {
+              "column": "location",
+              "value": "={{$json[\"body\"][\"location\"]}}"
+            },
+            {
+              "column": "crime_type",
+              "value": "={{$json[\"body\"][\"crime_type\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        128,
+        32
+      ],
+      "id": "ccd88e89-79f7-43f6-9a4d-e53e4fade0f5",
+      "name": "Insert rows in a table",
+      "credentials": {
+        "mySql": {
+          "id": "aBzcmm7bs98CXSE0",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        464,
+        256
+      ],
+      "id": "b1d5f0c1-2c56-4ac8-b446-e22e2e5275ad",
+      "name": "Merge1",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": {
+          "__rl": true,
+          "value": "users",
+          "mode": "name"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -16,
+        656
+      ],
+      "id": "60d25052-9505-479e-a6ab-76b631726fcf",
+      "name": "Select rows from a table",
+      "credentials": {
+        "mySql": {
+          "id": "XtHL5uqatgTa2gwH",
+          "name": "MySQL account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all merged inputs\nconst inputs = $input.all();\n\nlet users = [];\nlet newsItems = [];\n\n// Separate users and news\nfor (const input of inputs) {\n  const data = input.json;\n\n  if (Array.isArray(data)) {\n    for (const item of data) {\n      if (item.email && item.name) {\n        users.push(item);\n      } else {\n        newsItems.push(item);\n      }\n    }\n  } else {\n    if (data.email && data.name) {\n      users.push(data);\n    } else {\n      newsItems.push(data);\n    }\n  }\n}\n\n// Debug: if no news, return early\nif (newsItems.length === 0) {\n  return [{ json: { error: \"No news items detected\", inputs } }];\n}\n\nconst mergedData = [];\n\nfor (let user of users) {\n  const location = (user.location || \"\").toLowerCase();\n  const crimeType = (user.crimeType || \"\").toLowerCase();\n\n  // Function to create searchable text from news\n  function getTextBlob(n) {\n    return [\n      n.title || \"\",\n      n.content || \"\",\n      n.contentSnippet || \"\",\n      (n.categories || []).join(\" \"),\n      n.crime_type || \"\"\n    ].join(\" \").toLowerCase();\n  }\n\n  // Try location first\n  let relevantNews = newsItems.filter(n => {\n    if (!location) return false;\n    const cats = (n.categories || []).map(c => c.toLowerCase());\n    return cats.includes(location) || getTextBlob(n).includes(location);\n  });\n\n  // If no location match, try crime type\n  if (relevantNews.length === 0 && crimeType) {\n    relevantNews = newsItems.filter(n =>\n      getTextBlob(n).includes(crimeType)\n    );\n  }\n\n  // Final fallback: give all news if still nothing\n  if (relevantNews.length === 0) {\n    relevantNews = newsItems;\n  }\n\n  mergedData.push({\n    json: {\n      name: user.name,\n      email: user.email,\n      location: user.location,\n      crimeType: user.crimeType,\n      matchedCount: relevantNews.length,\n      news: relevantNews\n    }\n  });\n}\n\nreturn mergedData;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        240
+      ],
+      "id": "bd4fc17d-74e6-425c-831c-394835b9d312",
+      "name": "Code5"
+    },
+    {
+      "parameters": {
+        "url": "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -64,
+        400
+      ],
+      "id": "d2eede34-9d00-4754-8bbd-ce449d859019",
+      "name": "RSS Read2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Read1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Select rows from a table",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Read2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read1": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code3": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Send email1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table": {
+      "main": [
+        []
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Code5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select rows from a table": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code5": {
+      "main": [
+        [
+          {
+            "node": "Code3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read2": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ad44ec16-98f7-4a1e-89d6-de0e06d0d252",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3b98c8309e8fd27310c335f5af2835473b7c82814669575de2eb051705dec92d"
+  },
+  "id": "DF6iL4b1VGEvgnCq",
+  "tags": []
+}
